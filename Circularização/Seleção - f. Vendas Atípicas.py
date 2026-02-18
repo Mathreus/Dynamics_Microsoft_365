@@ -4,12 +4,11 @@ import pandas as pd
 from datetime import datetime
 import os
 
-# Defina as informações de conexão
-server = 'DCMDWF01A.MOURA.INT'
-database = 'ax'
-username = 'uAuditoria'
-password = '@ud!t0$!@202&22'
-driver = 'SQL Server'  # Driver específico para o banco de dados que você está usando
+# Configurações de conexão com o banco de dados
+server = '' -- Inserir o servidor  
+database = '' -- Inserir o Banco de Dados   
+username = '' -- Inserir o usuário 
+password = '' -- Inserir a senha
 
 # Construa a string de conexão
 connection_string = f'DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}'
@@ -80,3 +79,4 @@ except pyodbc.Error as e:
     print(f"❌ Erro na conexão ou consulta: {e}")
 except Exception as e:
     print(f"❌ Erro inesperado: {e}")
+
