@@ -8,14 +8,14 @@ from warnings import filterwarnings
 filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
 # Configurações de conexão com o banco de dados
-server = '' -- Inserir o servidor  
-database = '' -- Inserir o Banco de Dados   
-username = '' -- Inserir o usuário 
-password = '' -- Inserir a senha
+server = 'DCMDWF01A.MOURA.INT'  
+database = 'ax'   
+username = 'uAuditoria' 
+password = '@ud!t0$!@202&22'  
 
 # Definir o caminho de salvamento
-caminho_salvamento = r'' -- Inserir o caminho
-nome_arquivo = f'analise_devolucoes_faturamento_7grupos_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+caminho_salvamento = r'C:\Users\matheus.melo\OneDrive - Acumuladores Moura SA\Documentos\Drive - Matheus Melo\Auditoria\2026\04. Circularização\Validações\Fluminense - R121'
+nome_arquivo = f'analise_distribuidores_grupos_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
 caminho_completo = os.path.join(caminho_salvamento, nome_arquivo)
 
 # Definição dos 7 grupos
@@ -41,13 +41,16 @@ grupos = {
     'VISÃO': ['R011', 'R511', 'R101', 'R811', 'R051', 'R052', 'R161']
 }
 
-# Criar lista completa de todos os estabelecimentos
+# Criar lista completa de todos os estabelecimentos para análise
 todos_estabelecimentos = []
 for estabelecimentos in grupos.values():
     todos_estabelecimentos.extend(estabelecimentos)
 
 # Remover duplicatas
 todos_estabelecimentos = list(set(todos_estabelecimentos))
+
+# Lista específica de distribuidores do grupo AVANÇAR (para manter compatibilidade)
+distribuidores_avancar = grupos['AVANÇAR']
 
 def conectar_banco():
     """Estabelece conexão com o banco de dados"""
@@ -87,12 +90,13 @@ def gerar_case_grupos():
     
     return '\n        '.join(case_parts)
 
-def executar_query_devolucoes_grupo(conn):
-    """Executa a query de devoluções por grupo"""
+def executar_query_devolucoes_distribuidor(conn):
+    """Executa a query de devoluções por distribuidor incluindo grupo"""
     case_expression = gerar_case_grupos()
     
     query_devolucoes = f"""
     SELECT
+        COD_ESTABELECIMENTO,
         CASE
             {case_expression}
         END AS GRUPO_RM,
@@ -108,29 +112,30 @@ def executar_query_devolucoes_grupo(conn):
                     '2.201', '2.202', '2.203', '2.204', '2.410', '2.411', '2.553', '2.660', '2.661', '2.662',
                     '3.201', '3.202', '3.211', '3.553')
     GROUP BY
+        COD_ESTABELECIMENTO,
         CASE
             {case_expression}
         END
     ORDER BY
-        CASE
-            {case_expression}
-        END
+        GRUPO_RM,
+        COD_ESTABELECIMENTO
     """
     
     try:
         df_devolucoes = executar_query(conn, query_devolucoes)
-        print(f"Query de devoluções executada: {len(df_devolucoes)} grupos encontrados")
+        print(f"Query de devoluções executada: {len(df_devolucoes)} distribuidores encontrados")
         return df_devolucoes
     except Exception as e:
         print(f"Erro ao executar query de devoluções: {e}")
         return pd.DataFrame()
 
-def executar_query_faturamento_grupo(conn):
-    """Executa a query de faturamento por grupo"""
+def executar_query_faturamento_distribuidor(conn):
+    """Executa a query de faturamento por distribuidor incluindo grupo"""
     case_expression = gerar_case_grupos()
     
     query_faturamento = f"""
     SELECT
+        COD_ESTABELECIMENTO,
         CASE
             {case_expression}
         END AS GRUPO_RM,
@@ -138,10 +143,10 @@ def executar_query_faturamento_grupo(conn):
         SUM(VALOR) AS VALOR_VENDAS
     FROM 
         VW_AUDIT_RM_ORDENS_VENDA
-    WHERE 
+    WHERE  
         COD_ESTABELECIMENTO IN ({','.join([f"'{e}'" for e in todos_estabelecimentos])})
         AND DATA_NOTA_FISCAL BETWEEN '2025-07-01' AND '2025-12-31'  
-        AND PARA_FATURAMENTO = 'SIM'
+        AND PARA_FATURAMENTO = 'Sim'
         AND CFOP IN ('5.100', '5.101', '5.102', '5.103', '5.104', '5.105', '5.106', '5.109', '5.110', '5.111', 
                     '5.112', '5.113', '5.114', '5.115', '5.116', '5.117', '5.118', '5.119', '5.120', '5.122', 
                     '5.123', '5.250','5.251', '5.252', '5.253', '5.254', '5.255', '5.256', '5.257', '5.258', 
@@ -152,26 +157,26 @@ def executar_query_faturamento_grupo(conn):
                     '6.257', '6.258', '6.401', '6.402', '6.403', '6.404', '6.651', '6.652', '6.653', '6.654',
                     '6.655', '6.656', '6.667', '7.100', '7.101', '7.102', '7.105', '7.106','7.127', '7.250', 
                     '7.251', '7.651', '7.654', '7.667')
-    GROUP BY
+    GROUP BY    
+        COD_ESTABELECIMENTO,
         CASE
             {case_expression}
         END
     ORDER BY
-        CASE
-            {case_expression}
-        END
+        GRUPO_RM,
+        COD_ESTABELECIMENTO
     """
     
     try:
         df_faturamento = executar_query(conn, query_faturamento)
-        print(f"Query de faturamento executada: {len(df_faturamento)} grupos encontrados")
+        print(f"Query de faturamento executada: {len(df_faturamento)} distribuidores encontrados")
         return df_faturamento
     except Exception as e:
         print(f"Erro ao executar query de faturamento: {e}")
         return pd.DataFrame()
 
 def formatar_numeros(df):
-    """Formata todas as colunas numéricas"""
+    """Formata todas as colunas numéricas com 2 casas decimais"""
     
     # Identificar colunas numéricas
     colunas_numericas = df.select_dtypes(include=['float64', 'int64']).columns
@@ -186,54 +191,51 @@ def formatar_numeros(df):
     
     return df
 
-def calcular_analise_devolucoes(df_devolucoes, df_faturamento):
-    """Calcula a análise de devoluções vs faturamento por grupo"""
-    
-    # Ordem desejada dos grupos
-    ordem_grupos = ['AVANÇAR', 'BASE', 'CRESCER', 'FORTALEZA', 'PLANALTO', 'SUL', 'VISÃO', 'OUTROS']
+def calcular_analise_distribuidores(df_devolucoes, df_faturamento):
+    """Calcula a análise de devoluções vs faturamento por distribuidor"""
     
     # Verificar se temos dados
     if df_devolucoes.empty and df_faturamento.empty:
         print("AVISO: Ambas as queries não retornaram dados.")
         
-        # Criar DataFrame com todos os grupos
-        df_resultado = pd.DataFrame({
-            'GRUPO_RM': ordem_grupos,
-            'QUANTIDADE_DEVOLVIDO': [0.0] * len(ordem_grupos),
-            'VALOR_DEVOLVIDO': [0.0] * len(ordem_grupos),
-            'QUANTIDADE_VENDAS': [0.0] * len(ordem_grupos),
-            'VALOR_VENDAS': [0.0] * len(ordem_grupos)
-        })
+        # Criar DataFrame com todos os distribuidores de todos os grupos
+        dados_iniciais = []
+        for grupo_nome, estabelecimentos in grupos.items():
+            for estabelecimento in estabelecimentos:
+                dados_iniciais.append({
+                    'COD_ESTABELECIMENTO': estabelecimento,
+                    'GRUPO_RM': grupo_nome,
+                    'QUANTIDADE_DEVOLVIDO': 0.0,
+                    'VALOR_DEVOLVIDO': 0.0,
+                    'QUANTIDADE_VENDAS': 0.0,
+                    'VALOR_VENDAS': 0.0
+                })
+        
+        df_resultado = pd.DataFrame(dados_iniciais)
     else:
-        # Realizar merge das duas tabelas usando GRUPO_RM como chave
+        # Realizar merge das duas tabelas usando COD_ESTABELECIMENTO como chave
         df_merge = pd.merge(df_devolucoes, df_faturamento, 
-                            on=['GRUPO_RM'], 
+                            on=['COD_ESTABELECIMENTO', 'GRUPO_RM'], 
                             how='outer', 
                             suffixes=('_DEV', '_FAT'))
         
-        # Garantir que todos os grupos estejam presentes
-        todos_grupos_df = pd.DataFrame({'GRUPO_RM': ordem_grupos})
-        df_resultado = pd.merge(todos_grupos_df, df_merge, 
-                               on=['GRUPO_RM'], 
-                               how='left')
-        
         # Preencher valores nulos com 0
         for col in ['QUANTIDADE_DEVOLVIDO', 'VALOR_DEVOLVIDO', 'QUANTIDADE_VENDAS', 'VALOR_VENDAS']:
-            df_resultado[col] = df_resultado[col].fillna(0)
+            df_merge[col] = df_merge[col].fillna(0)
+        
+        df_resultado = df_merge
     
     # Calcular taxas de devolução
-    def calcular_taxa(valor_dev, valor_vendas):
-        if valor_vendas == 0:
+    def calcular_taxa(valor_dev, valor_fat):
+        if valor_fat == 0:
             return 0.0
-        return (valor_dev / valor_vendas)
+        return (valor_dev / valor_fat)
     
-    # Taxa de devolução em valor
     df_resultado['TAXA_DEVOLUCAO_VALOR'] = df_resultado.apply(
         lambda x: calcular_taxa(x['VALOR_DEVOLVIDO'], x['VALOR_VENDAS']), 
         axis=1
     )
     
-    # Taxa de devolução em quantidade
     df_resultado['TAXA_DEVOLUCAO_QUANTIDADE'] = df_resultado.apply(
         lambda x: calcular_taxa(x['QUANTIDADE_DEVOLVIDO'], x['QUANTIDADE_VENDAS']), 
         axis=1
@@ -248,25 +250,10 @@ def calcular_analise_devolucoes(df_devolucoes, df_faturamento):
         lambda x: f"{x:.2%}"
     )
     
-    # Calcular ranking por taxa de devolução (maior problema primeiro)
-    df_resultado['RANKING_TAXA_VALOR'] = df_resultado['TAXA_DEVOLUCAO_VALOR'].rank(ascending=False, method='min').astype(int)
-    
-    # Classificar grupos por nível de risco
-    def classificar_risco(taxa):
-        if taxa >= 0.10:  # 10% ou mais
-            return 'ALTO RISCO'
-        elif taxa >= 0.05:  # 5% a 9.99%
-            return 'MÉDIO RISCO'
-        elif taxa > 0:  # 0.01% a 4.99%
-            return 'BAIXO RISCO'
-        else:  # 0%
-            return 'SEM DEVOLUÇÃO'
-    
-    df_resultado['NIVEL_RISCO'] = df_resultado['TAXA_DEVOLUCAO_VALOR'].apply(classificar_risco)
-    
-    # Ordenar por ordem definida
-    df_resultado['ORDEM'] = df_resultado['GRUPO_RM'].apply(lambda x: ordem_grupos.index(x) if x in ordem_grupos else 999)
-    df_resultado = df_resultado.sort_values('ORDEM').drop('ORDEM', axis=1)
+    # Ordenar por grupo e depois por código do distribuidor
+    ordem_grupos = ['AVANÇAR', 'BASE', 'CRESCER', 'FORTALEZA', 'PLANALTO', 'SUL', 'VISÃO', 'OUTROS']
+    df_resultado['ORDEM_GRUPO'] = df_resultado['GRUPO_RM'].apply(lambda x: ordem_grupos.index(x) if x in ordem_grupos else 999)
+    df_resultado = df_resultado.sort_values(['ORDEM_GRUPO', 'COD_ESTABELECIMENTO']).drop('ORDEM_GRUPO', axis=1)
     
     # Criar cópia formatada para exibição
     df_formatado = df_resultado.copy()
@@ -275,14 +262,13 @@ def calcular_analise_devolucoes(df_devolucoes, df_faturamento):
     # Definir ordem das colunas para a análise detalhada
     colunas_analise_detalhada = [
         'GRUPO_RM',
+        'COD_ESTABELECIMENTO',
         'QUANTIDADE_VENDAS', 
         'VALOR_VENDAS',
         'QUANTIDADE_DEVOLVIDO', 
         'VALOR_DEVOLVIDO',
         'TAXA_DEVOLUCAO_VALOR_PCT', 
-        'TAXA_DEVOLUCAO_QUANTIDADE_PCT',
-        'NIVEL_RISCO',
-        'RANKING_TAXA_VALOR'
+        'TAXA_DEVOLUCAO_QUANTIDADE_PCT'
     ]
     
     # Manter apenas colunas que existem
@@ -322,7 +308,7 @@ def salvar_analise_detalhada(df_formatado, caminho_completo):
             
             # Último fallback: salvar no diretório atual
             try:
-                caminho_simples = f'analise_devolucoes_7grupos_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
+                caminho_simples = f'analise_distribuidores_grupos_{datetime.now().strftime("%Y%m%d_%H%M")}.xlsx'
                 df_formatado.to_excel(caminho_simples, index=False)
                 print(f"📁 Arquivo salvo no diretório atual: {caminho_simples}")
                 print(f"   Caminho atual: {os.getcwd()}")
@@ -335,18 +321,20 @@ def main():
     """Função principal"""
     
     print("=" * 70)
-    print("ANÁLISE DE DEVOLUÇÕES vs FATURAMENTO - 7 GRUPOS")
+    print("ANÁLISE DE DEVOLUÇÕES vs FATURAMENTO POR DISTRIBUIDOR E GRUPO")
     print("=" * 70)
     print(f"Destino do arquivo: {caminho_completo}")
     
     # Resumo dos grupos
     print(f"\n📊 GRUPOS CONFIGURADOS:")
+    total_distribuidores = 0
     for grupo_nome, estabelecimentos in grupos.items():
         print(f"   • {grupo_nome}: {len(estabelecimentos)} estabelecimentos")
+        total_distribuidores += len(estabelecimentos)
     
     print(f"\n📋 RESUMO:")
     print(f"   • Total de grupos: {len(grupos)}")
-    print(f"   • Total de estabelecimentos: {len(todos_estabelecimentos)}")
+    print(f"   • Total de distribuidores: {total_distribuidores}")
     print(f"   • Período analisado: 2025-07-01 a 2025-12-31")
     print()
     
@@ -359,14 +347,14 @@ def main():
     try:
         # Executar queries
         print("📊 Coletando dados de devoluções...")
-        df_devolucoes = executar_query_devolucoes_grupo(conn)
+        df_devolucoes = executar_query_devolucoes_distribuidor(conn)
         
         print("📊 Coletando dados de faturamento...")
-        df_faturamento = executar_query_faturamento_grupo(conn)
+        df_faturamento = executar_query_faturamento_distribuidor(conn)
         
         # Calcular análise
         print("📈 Calculando análise...")
-        df_resultado, df_formatado = calcular_analise_devolucoes(df_devolucoes, df_faturamento)
+        df_resultado, df_formatado = calcular_analise_distribuidores(df_devolucoes, df_faturamento)
         
         # Salvar apenas a análise detalhada
         print("💾 Salvando análise detalhada...")
@@ -374,7 +362,7 @@ def main():
         
         if sucesso:
             print("\n" + "=" * 70)
-            print("RESULTADOS DA ANÁLISE DE DEVOLUÇÕES - 7 GRUPOS")
+            print("RESULTADOS DA ANÁLISE POR DISTRIBUIDOR E GRUPO")
             print("=" * 70)
             
             # Exibir resumo
@@ -383,41 +371,54 @@ def main():
             taxa_geral = (total_devolucao / total_faturamento) if total_faturamento > 0 else 0
             
             print(f"\n📋 RESUMO GERAL:")
-            print(f"   • Total de grupos analisados: {len(df_resultado)}")
+            print(f"   • Total de distribuidores analisados: {len(df_resultado)}")
             print(f"   • Total faturado: R$ {total_faturamento:,.2f}")
             print(f"   • Total devolvido: R$ {total_devolucao:,.2f}")
             print(f"   • Taxa geral de devolução: {taxa_geral:.2%}")
             
-            # Top grupos por taxa de devolução (maior problema)
-            print(f"\n⚠️  TOP 3 GRUPOS COM MAIOR TAXA DE DEVOLUÇÃO:")
-            df_top_problemas = df_resultado.nlargest(3, 'TAXA_DEVOLUCAO_VALOR')
+            # Resumo por grupo
+            print(f"\n📊 RESUMO POR GRUPO:")
+            resumo_grupos = df_resultado.groupby('GRUPO_RM').agg({
+                'COD_ESTABELECIMENTO': 'count',
+                'VALOR_VENDAS': 'sum',
+                'VALOR_DEVOLVIDO': 'sum'
+            }).reset_index()
+            
+            resumo_grupos['TAXA'] = resumo_grupos.apply(
+                lambda x: x['VALOR_DEVOLVIDO'] / x['VALOR_VENDAS'] if x['VALOR_VENDAS'] > 0 else 0,
+                axis=1
+            )
+            
+            for _, row in resumo_grupos.iterrows():
+                print(f"   • {row['GRUPO_RM']}: {row['COD_ESTABELECIMENTO']} distribuidores, "
+                      f"Taxa: {row['TAXA']:.2%}")
+            
+            # Top distribuidores com maior taxa de devolução
+            print(f"\n⚠️  TOP 5 DISTRIBUIDORES COM MAIOR TAXA DE DEVOLUÇÃO:")
+            df_top_problemas = df_resultado.nlargest(5, 'TAXA_DEVOLUCAO_VALOR')
             for i, (_, row) in enumerate(df_top_problemas.iterrows(), 1):
                 if row['TAXA_DEVOLUCAO_VALOR'] > 0:
-                    print(f"   {i}. {row['GRUPO_RM']}: {row['TAXA_DEVOLUCAO_VALOR']:.2%} "
-                          f"(R$ {row['VALOR_DEVOLVIDO']:,.2f} / R$ {row['VALOR_VENDAS']:,.2f}) - {row['NIVEL_RISCO']}")
+                    print(f"   {i}. {row['COD_ESTABELECIMENTO']} ({row['GRUPO_RM']}): "
+                          f"{row['TAXA_DEVOLUCAO_VALOR']:.2%} "
+                          f"(R$ {row['VALOR_DEVOLVIDO']:,.2f} / R$ {row['VALOR_VENDAS']:,.2f})")
             
-            # Grupos sem devolução
+            # Distribuidores sem devolução
             sem_devolucao = df_resultado[df_resultado['VALOR_DEVOLVIDO'] == 0]
-            grupos_sem = [g for g in sem_devolucao['GRUPO_RM'] if g != 'OUTROS']
-            if grupos_sem:
-                print(f"\n✅ GRUPOS SEM DEVOLUÇÃO: {', '.join(grupos_sem)}")
+            if len(sem_devolucao) > 0:
+                print(f"\n✅ DISTRIBUIDORES SEM DEVOLUÇÃO: {len(sem_devolucao)} distribuidores")
+                # Mostrar alguns exemplos
+                exemplos = sem_devolucao.head(5)['COD_ESTABELECIMENTO'].tolist()
+                print(f"   Exemplos: {', '.join(exemplos)}")
             
-            # Distribuição por nível de risco
-            print(f"\n📊 DISTRIBUIÇÃO POR NÍVEL DE RISCO:")
-            for nivel in ['ALTO RISCO', 'MÉDIO RISCO', 'BAIXO RISCO', 'SEM DEVOLUÇÃO']:
-                count = len(df_resultado[df_resultado['NIVEL_RISCO'] == nivel])
-                if count > 0:
-                    print(f"   • {nivel}: {count} grupo(s)")
-            
-            # Mostrar prévia dos dados formatados
-            print(f"\n📄 ANÁLISE DETALHADA (formato Excel):")
-            print(df_formatado.to_string(index=False))
+            # Mostrar prévia dos dados
+            print(f"\n📄 PRÉVIA DA ANÁLISE DETALHADA (primeiras 8 linhas):")
+            print(df_formatado.head(8).to_string(index=False))
             
             # Informações do arquivo
             print(f"\n📁 INFORMAÇÕES DO ARQUIVO:")
             print(f"   • Nome: {os.path.basename(caminho_completo)}")
             print(f"   • Local: {caminho_completo}")
-            print(f"   • Grupos analisados: {len(df_formatado)}")
+            print(f"   • Distribuidores analisados: {len(df_formatado)}")
             print(f"   • Colunas incluídas: {', '.join(df_formatado.columns.tolist())}")
             
         else:
