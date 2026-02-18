@@ -8,10 +8,10 @@ from warnings import filterwarnings
 filterwarnings('ignore', message='pandas only supports SQLAlchemy connectable')
 
 # Configurações de conexão com o banco de dados
-server = 'DCMDWF01A.MOURA.INT'  
-database = 'ax'   
-username = 'uAuditoria' 
-password = '@ud!t0$!@202&22'  
+server = '' -- Inserir o servidor  
+database = '' -- Inserir o Banco de Dados   
+username = '' -- Inserir o usuário 
+password = '' -- Inserir a senha 
 
 # Definir o caminho de salvamento
 caminho_salvamento = r'C:\Users\matheus.melo\OneDrive - Acumuladores Moura SA\Documentos\Drive - Matheus Melo\Auditoria\2026\04. Circularização\Validações\Fluminense - R121'
@@ -446,3 +446,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
