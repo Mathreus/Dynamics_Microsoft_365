@@ -12,11 +12,11 @@ def conectar_banco():
     Ajuste os parâmetros conforme sua configuração
     """
     try:
-        # Configurações de conexão - AJUSTE AQUI CONFORME SEU AMBIENTE
-        server = 'DCMDWF01A.MOURA.INT'  # Ex: 'localhost\\SQLEXPRESS' ou 'dcmdwf01a.moura.int'
-        database = 'ax'   # Ex: 'SeuDatabase'
-        username = 'uAuditoria' # Ex: 'sa'
-        password = '@ud!t0$!@202&22'   # Ex: 'sua_senha'
+        # Configurações de conexão com o banco de dados
+        server = '' -- Inserir o servidor  
+        database = '' -- Inserir o Banco de Dados   
+        username = '' -- Inserir o usuário 
+        password = '' -- Inserir a senha
         
         # String de conexão
         conn_str = f'DRIVER={{SQL Server}};SERVER={server};DATABASE={database};UID={username};PWD={password}'
@@ -338,3 +338,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
